@@ -154,6 +154,8 @@ func readMinecraftPackets(conn *minecraft.Conn, dg *discordgo.Session) {
 		case *packet.Text:
 			handleChat(p, dg)
 		case *packet.PlayerList:
+			log.Printf("[MC] PlayerList packet received: %T\n", p)
+
 			handlePlayerList(p, dg)
 		}
 	}
@@ -179,14 +181,21 @@ func handleChat(text *packet.Text, dg *discordgo.Session) {
 
 func handlePlayerList(pk *packet.PlayerList, dg *discordgo.Session) {
 	for _, entry := range pk.Entries {
+		log.Println("[MC] ActionType: ", entry.ActionType)
 		name := strings.TrimSuffix(entry.Username, "§r")
-		if name == "" || name == "BridgeBot" {
+		if name == "BridgeBot" {
+			log.Println("Skipped", name)
 			continue // skip the bridge bot itself
 		}
+		log.Println("Proceed", name)
 
 		key := entry.UUID.String()
+		avatarUrl := func(name string) string {
+			return "https://mc-heads.net/avatar/" + name + "/64"
+		}
 
-		if entry.ActionType == protocol.PlayerListActionAdd {
+		switch entry.ActionType {
+		case protocol.PlayerListActionAdd:
 			onlinePlayersMu.Lock()
 			_, already := onlinePlayers[key]
 			onlinePlayers[key] = name
@@ -194,9 +203,9 @@ func handlePlayerList(pk *packet.PlayerList, dg *discordgo.Session) {
 
 			if !already {
 				log.Println("[MC] Join:", name)
-				sendSystemEmbed(dg, fmt.Sprintf("➕ **%s** joined the game", name), 0x2ECC71)
+				sendSystemEmbedWithImage(dg, fmt.Sprintf("%s joined the game", name), 0x2ECC71, avatarUrl(name))
 			}
-		} else if entry.ActionType == protocol.PlayerListActionRemove {
+		case protocol.PlayerListActionRemove:
 			onlinePlayersMu.Lock()
 			storedName, existed := onlinePlayers[key]
 			delete(onlinePlayers, key)
@@ -204,7 +213,7 @@ func handlePlayerList(pk *packet.PlayerList, dg *discordgo.Session) {
 
 			if existed {
 				log.Println("[MC] Leave:", storedName)
-				sendSystemEmbed(dg, fmt.Sprintf("➖ **%s** left the game", storedName), 0xE74C3C)
+				sendSystemEmbedWithImage(dg, fmt.Sprintf("%s left the game", storedName), 0xE74C3C, avatarUrl(storedName))
 			}
 		}
 	}
@@ -264,6 +273,16 @@ func sendSystemEmbed(dg *discordgo.Session, text string, color int) {
 	dg.ChannelMessageSendEmbed(discordChannel, &discordgo.MessageEmbed{
 		Description: text,
 		Color:       color,
+	})
+}
+
+func sendSystemEmbedWithImage(dg *discordgo.Session, text string, color int, icon string) {
+	dg.ChannelMessageSendEmbed(discordChannel, &discordgo.MessageEmbed{
+		Color: color,
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    text,
+			IconURL: icon,
+		},
 	})
 }
 

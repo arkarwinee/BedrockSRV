@@ -135,4 +135,4 @@ journalctl -u bedrocksrv -f   # view logs
 
 ## License
 
-Add a license of your choice (MIT is a common pick for small utility projects like this).
+MIT — see [LICENSE](LICENSE)
